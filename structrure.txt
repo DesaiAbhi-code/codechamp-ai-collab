@@ -1,0 +1,167 @@
+### Backend Setup
+
+#### Step 1: Create `app.js` and `server.js`
+- Create two files: `app.js` and `server.js`.
+
+#### Step 2: Create `.env` File
+- Add environment variables in the `.env` file.
+
+#### Step 3: Create `db` Folder
+- Set up the database connection and ensure the database is running correctly.
+
+---
+
+### Frontend Setup
+
+#### Step 1: Import Tailwind CSS
+- Configure and import Tailwind CSS into the project.
+
+#### Step 2: Create `.env` File
+- Add environment variables in the `.env` file for the frontend.
+
+#### Step 3: Link `app.jsx` to `main.jsx`
+- Call `app.jsx` in `main.jsx` and set up the application entry point.
+
+#### Step 4: Create Routes
+- Define and configure application routes.
+
+#### Step 5: Create `screens` Folder
+- Create a folder named `screens` to organize the components for different pages.
+
+---
+
+### User Registration System
+
+#### Backend Steps:
+
+1. **Create User Model**
+   - Define the schema for user data.
+
+2. **Create Services**
+   - Implement business logic for user registration.
+
+3. **Create Controller**
+   - Write controller functions to handle registration requests.
+
+4. **Create Routes**
+   - Define API endpoints for user registration.
+
+#### Frontend Steps:
+
+1. **Create Registration Page**
+   - Design the registration page UI.
+
+2. **Call Routes in Registration Page**
+   - Link the registration page to the appropriate routes.
+
+3. **Call Axios API**
+   - Use Axios to send registration data to the backend.
+
+4. **Create `UserContext` File**
+   - Pass user data to different components via context.
+
+5. **Set and Call `UserContext` in Registration Page**
+   - Use `UserContext` to manage user data.
+
+6. **Set `UserContext` in `app.jsx`**
+   - Initialize and provide `UserContext` in `app.jsx`.
+
+---
+
+### User Login System
+
+#### Backend Steps:
+
+1. **Create Redis Services**
+   - Use Redis to store session data in RAM and configure it in the `.env` file.
+
+2. **Create Login Controller**
+   - Write the controller logic for user login.
+
+3. **Create Auth Middleware**
+   - Implement middleware to set and verify tokens.
+
+4. **Create Routes**
+   - Define API endpoints for user login.
+
+#### Frontend Steps:
+
+1. **Create Login Page**
+   - Design the login page UI.
+
+2. **Call Routes in Login Page**
+   - Link the login page to the appropriate routes.
+
+3. **Call Axios API**
+   - Use Axios to send login data to the backend.
+
+4. **Create `UserContext` File**
+   - Pass user data to different components via context.
+
+5. **Set and Call `UserContext` in Login Page**
+   - Use `UserContext` to manage user data.
+
+6. **Set `UserContext` in `app.jsx`**
+   - Initialize and provide `UserContext` in `app.jsx`.
+
+---
+
+### User Profile
+
+#### Why Create a Profile?
+- To ensure only logged-in users can view their profile data.
+
+#### Backend Steps:
+
+1. **Create Profile Controller**
+   - Write the logic to fetch and display user profile data.
+
+2. **Create Routes**
+   - Use `authMiddleware` to protect profile routes.
+
+---
+
+### Logout System
+
+#### Backend Steps:
+
+1. **Create Logout Controller**
+   - Write the logic to handle user logout.
+
+2. **Create Routes**
+   - Use `authMiddleware` to protect logout routes.
+
+---
+
+### Project Creation Workflow
+
+#### Backend Steps:
+
+1. **Create Endpoints**
+   - Define models and set up endpoints for the project.
+
+2. **Create Project Services**
+   - Implement business logic for project-related operations.
+
+3. **Create Project Controller**
+   - Write controller functions for project management.
+
+4. **Create Project Routes**
+   - Define API endpoints for project-related actions.
+
+5. **Configure in `app.js`**
+   - Integrate project routes into the main application file.
+
+6. **Check Routes**
+   - Test all project-related routes.
+
+#### Frontend Steps:
+
+1. **Create Modal Popup on Home Page**
+   - Implement a modal popup for creating projects.
+
+2. **Call APIs**
+   - Use Axios to interact with backend APIs.
+
+3. **Configure Axios Headers**
+   - Set up headers for handling token errors in Axios configuration.

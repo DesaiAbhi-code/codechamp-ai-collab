@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0%;
+  padding: 0%;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  width: 100%;
+}
+
+.message-box {
+  scroll-behavior: smooth;
+}
+
+.message-box::-webkit-scrollbar {
+  display: none;
+}
+
+
+.message-box {
+  display: flex;
+  flex-direction: column;
+  min-height: 50px; /* Ensures the skeleton has space */
+}
+
+
+.message-box::-webkit-scrollbar {
+  width: 8px;
+}
+.message-box::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+.message-box::-webkit-scrollbar-track {
+  background: #f3f4f6;
+}
+
+.message {
+  transition: transform 0.2s ease;
+}
+.message:hover {
+  transform: translateY(-4px);
+}

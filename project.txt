@@ -1,0 +1,270 @@
+backend this start
+all the command execute in cmd.txt in
+
+step 1: two file create app.js and server.js
+step 2: firste create env file
+step 3: db folder create and check the database runing
+ 
+
+------------------------------------------------------------
+
+
+forntend folder create karvau
+and all command execute
+step 1: tailwand css import karavani
+step 2 : env file create
+step 3: app.jsx file call to main.jsx and main.jsx file 
+step 4: routes create
+step 5: screen folder create
+
+
+=====================================================================================
+---->>>>>>
+
+user mate register and login sysytem
+
+
+--------------------------------------------------------------------------------------
+--->register mate
+
+this is backend side
+
+
+step 1: user model create
+step 2: services create
+step 3 : controller create 
+step 4: routes create
+
+
+this is forntend side
+step 1:  registe page create
+step 2: registe page call routes
+step 3:  registe page call axios api
+step 4:   usercontext  file create user data pass karva alag alag component mate
+step 5:   call and set usercontext in register page
+step 6: usercontext in set app.jsx in
+
+
+---------------------------------------------------------------------------------------
+-----> login mate
+this backend code
+
+step 1: create redis services use for store data in ram and set redis in env file
+step 2: create login controller
+step 3: create auth middleware in set token and verify
+step 4: routes create
+
+frontend code
+
+step 1:  Login page create
+step 2: Login page call routes
+step 3:  Login page call axios api
+step 4:   usercontext  file create user data pass karva alag alag component mate
+step 5:   call and set usercontext in register page
+step 6: usercontext in set app.jsx in
+
+
+-----------------------------------------------------------------------------------------
+
+
+------>profile backend mate
+
+why create profile
+profile ma check kare ke login user che to j tena data show thay tena mate
+
+step 1: profil controller
+setp 2: routes create ma check authmiddleware
+
+------------------------------------------------------------------------------------------
+
+logout backend
+
+step 1: logout controller create
+step 2: routes create ma check authmiddleware
+
+
+
+
+
+
+---------------------------------------------------------------------------------------
+
+>>>>>>>>>>>>>>  project create  mate 
+
+
+project create  backend
+
+step:1  endpoint create karvu atle tena mate model banavu
+step 2:  project services create
+step 3 : project controller
+step 4 : project routes create
+step 5 : app.js ma conifg karvu
+step 6 : routes check
+
+
+project frontend
+
+step1: modelopen jevu pop create home page ma
+step 2: api call karavani
+step 3: headres ke token ni error mate tene conifg ma axios ni andara headers call karvau
+
+
+-------------------------------------------------------------------------------
+
+
+-->>  get all user project
+
+backend
+
+step 1: routes create
+step 2:  get all user controller
+step 3: get all user services craete
+
+project frontend
+
+step 1: project ma jyare modal open thay tyre badha user show thay tena mate
+step 2:  api call in use effect
+step 3: map ni help thi show user karava both type  
+        1. je user alarday collabrate hoy te pan pacha show thay
+        2. je user collabrate hoy te na show thay tena mate filter no use karvo
+
+
+
+-------------------------------------------------------------------------------
+
+
+------->>  add-user project
+
+backend
+
+step 1: routes create
+step 2:  put add user controller
+step 3:  add user services craete
+
+
+project forntend
+
+step 1: addcollbrate name nu function call kari ne tema api call karavani
+step 2: collabrate mathi je user select thay tene tema send karvana
+
+
+
+------------------------------------------------------------------------------------------
+
+/get-project/:projectId
+
+-->> je project ni andar jetla user che tena data mate
+
+
+backend
+
+step 1: routes create
+step 2: getProjectById  controller
+step 3:  getProjectById services craete
+
+project frontend
+
+
+step 1: useeffect ma api ne call karavani
+step 2: sidepanel ma show karav je user alrady project ma exist hoy te
+
+
+
+-------------------------------------------  socket io -------------------------------------------
+
+backend
+
+step 1: npm i socket.io
+step 2: check the connect
+step 3: check postman http change to websocket.io url must be write only localhost:8000
+step 4: socket middleware only login user connect  create io.use middleware
+step 5:  check postman and send header token
+
+
+frontend
+
+
+step 1: npm i socket.io-client for client base socket mate
+step 2: config folder in create socket.js file
+step 3: call the file in project.jsx
+
+
+
+------>>>>  connection and send message
+
+backend
+
+step 1: io.on ma socket.on project-message setup
+
+
+frontend
+
+step 1:create fubction send
+step 2: call the function onclick send and set message input filed
+step 3 : call the recivemessage in useeffect
+step 4: craete appendincoming and appendoutgoing message  and create messagebox useRef
+step 5: call send funtion in appendoutgoing message function
+
+
+
+-------------------------------------------------------------------
+
+Gemini api
+
+key = AIzaSyBxo8nDCC3zT6AArJHn43oWLfmp9krHJT0
+
+ai.google.dev ma jai login karvu
+->ai studio ma jai craete my api kari pachi te api key ni env file ma mukvi
+
+npm install @google/generative-ai
+
+ 
+
+
+backend 
+
+step 1: env fiel create varible and value is key
+step 2: ai.service.js file craete kari documention mathi code past karvo and install karvi google Gemini ne
+step 3: ai.controller banavu
+step 4: ai routes banavu
+step 5: prompt engeenring mate ai service ma jain tena modal ne instruction apvi pade
+step 6: instruction apya pachi server.js ma check karavnu @ai hoy to ai jode connect karavi devana socket ne
+
+
+frontend
+markdown   // use je ai thi response ave che tene sara format ma show karva mate use thay che.
+npm i markdown-to-jsx
+
+remove the innerhtml part for adding new messages in the uiand use an array that is state varibles and map for rendering new messages.
+
+setp 1: npm i markdown-to-jsx install karvus
+step 2: project.jsx ma import karvu
+step 3: pachi ek syntaxhilighted kari ne ek function create karvu jethi code hoy te highlight thay
+step 4: markdown ma wrap karvu
+step 5: je ai no response object ma ave che tene covevrt karva writeai message name nu function create karyu
+step 6: pachi tene call karvayu
+step 7: currentfile,openfile and file tree varibal create karya and calln karya
+step 8: handle name na function filetree set karyu and tema thi contents show thay tene call karyu
+
+
+
+
+---------------------------------------------------------------------------------------------------------------------
+
+
+->>>>>>>>>>>>>>>>>>   web container
+
+-> web container ae browser ma run server create kare che jethi file run kari shkvi
+-> mount means je filetree ma je file che te badhi file ek nana sysytem ma nakhi deshe
+
+frontend
+
+step 1: npm i @webcontainer/api install
+step 2: create config in webContainer file in  create function
+step 3: ai.service.js ma je contens ave tene file na object ni andar object create karavnu
+step 4: project.jsx ma getWebconatainer ne import karvu and tene useeffect ma call karav
+step 5: webContainer cors origin mate vite.config.js ma  2 line copy paste karva ni documention mathi
+step 6: have tene ek button create karvanu run name nu tema command apva na start and install na webcontainer thi
+step 7: iframe craete karvani te iframe thi response dekhay file je tame run karavi te
+step 8: ke je filetree ma je file na content edit karv mate tene jya content vala code che tya tene update karvano
+step 9: iframe ma url and port apva mate te

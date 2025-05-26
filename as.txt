@@ -1,0 +1,1220 @@
+import React, { useContext, useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
+import { UserContext } from '../Context/User.context';
+import axios from '../config/Axios';
+import { initializeSocket, receiveMessage, sendMessage, disconnectSocket } from '../config/Socket';
+import Markdown from 'markdown-to-jsx';
+import hljs from 'highlight.js';
+import 'highlight.js/styles/github.css'; // or any preferred theme
+
+function SyntaxHighlightedCode({ className, children }) {
+    const ref = useRef(null);
+
+    useEffect(() => {
+        if (ref.current && className?.includes('lang-')) {
+            hljs.highlightElement(ref.current);
+        }
+    }, [className, children]);
+
+    return <code ref={ref} className={className}>{children}</code>;
+}
+
+
+
+const Project = () => {
+    const location = useLocation();
+    const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedUserId, setSelectedUserId] = useState([]);
+    const [users, setUsers] = useState([]);
+    const [project, setProject] = useState(location.state.project);
+    const [message, setMessage] = useState('');
+    const messagebox = useRef(null);
+    const [messages, setMessages] = useState([]);
+    // const [isLoading, setIsLoading] = useState(false);
+
+    const [currentFile, setCurrentFile] = useState(null);
+    const [openFiles, setOpenFiles] = useState([])
+
+
+    const [fileTree, setFileTree] = useState({});
+
+    const { user } = useContext(UserContext);
+
+    useEffect(() => {
+        const socket = initializeSocket(project._id);
+        const handleMessage = (data) => {
+
+
+            const message = JSON.parse(data.message)
+            if (message.fileTree) {
+                setFileTree(message.fileTree)
+            }
+            console.log(data)
+            if (data.message) {
+                setMessages((prevMessages) => [...prevMessages, data]); // Append new messages
+            }
+
+        };
+
+        // const handleMessage = (data) => {
+        //     const message = JSON.parse(data.message)
+        //     if (message.fileTree) {
+        //         setFileTree(message.fileTree)
+        //     }
+        //     setMessages(prevMessages => [ ...prevMessages, data ]) // Update messages state
+        // };
+
+
+
+        receiveMessage('project-message', handleMessage);
+
+        fetchUsers();
+
+        axios.get(`/project/get-project/${location.state.project._id}`).then(res => {
+            setProject(res.data.project);
+        });
+
+        return () => {
+            if (socket) {
+                socket.off('project-message', handleMessage); // Use the stored socket instance
+                socket.disconnect(); // Properly disconnect on component unmount
+            }
+        };
+    }, [project._id]);
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages]);
+
+    /// ano use atle thay che ke je data ai na response mathi ave te object base ave che to tene text base karva mate write ai function use thay  che.
+
+    function WriteAiMessage(message) {
+
+        const messageObject = JSON.parse(message)
+
+        return (
+            <div
+                className='overflow-auto bg-slate-950 text-white rounded-sm p-2'
+            >
+                <Markdown
+                    options={{
+                        overrides: {
+                            code: {
+                                component: SyntaxHighlightedCode,
+                            },
+                        },
+                    }}
+                >
+                    {messageObject.text}
+                </Markdown>
+            </div>)
+    }
+
+
+
+    const scrollToBottom = () => {
+        if (messagebox.current) {
+            messagebox.current.scrollTop = messagebox.current.scrollHeight;
+        }
+    };
+
+    // const send = (e) => {
+    //     e.preventDefault();
+    //     // setIsLoading(true); // Start loader before sending message
+    //     sendMessage('project-message', {
+    //         message,
+    //         sender: user
+    //     });
+    //     setMessages((prevMessages) => [...prevMessages, { message, sender: user }]);
+    //     setMessage('');
+    // };
+
+
+    const send = (e) => {
+        e.preventDefault();
+        
+        const newMessage = {
+            message,
+            sender: user,
+            projectId: project._id  // Ensure project ID is included
+        };
+    
+        sendMessage('project-message', newMessage); // Send message via socket
+        setMessages((prevMessages) => [...prevMessages, newMessage]); // Update local state
+        setMessage('');
+    };
+    
+    const fetchUsers = async () => {
+        try {
+            const response = await axios.get('/user/all');
+            setUsers(response.data.users || []);
+        } catch (error) {
+            console.error('Error fetching users:', error);
+        }
+    };
+
+    const addCollaborators = async () => {
+        axios.put('/project/add-user', {
+            projectId: location.state.project._id,
+            users: selectedUserId
+        }).then((res) => {
+            console.log('Collaborators added:', res.data);
+            setIsModalOpen(false);
+            setSelectedUserId([]);
+        }).catch((error) => {
+            console.log('Error adding collaborators:', error);
+        });
+    };
+
+    const handleUserClick = (userId) => {
+        setSelectedUserId((prevSelected) => {
+            if (prevSelected.includes(userId)) {
+                return prevSelected.filter((id) => id !== userId);
+            }
+            return [...prevSelected, userId];
+        });
+    };
+
+    const toggleSidePanel = () => {
+        setIsSidePanelOpen(!isSidePanelOpen);
+    };
+
+    return (
+        <main className='h-screen w-screen flex flex-col md:flex-row'>
+            <section className="left relative flex flex-col h-screen min-w-96 max-w-80 bg-slate-300">
+                <header className='flex justify-between items-center p-2 px-4 w-full bg-slate-100 absolute z-10 top-0'>
+                    <button className='flex gap-2' onClick={() => setIsModalOpen(true)}>
+                        <i className="ri-add-fill mr-1"></i>
+                        <p>Add collaborator</p>
+                    </button>
+                    <button className="p-2" onClick={toggleSidePanel}>
+                        <i className="ri-group-fill"></i>
+                    </button>
+                </header>
+
+                <div className="conversation-area pb-10 flex-grow flex flex-col h-full relative">
+                    <div ref={messagebox} className="message-box overflow-anchor-none mt-14 mb-3 p-1 px-0 flex-grow flex flex-col overflow-auto relative scrollbar-hide overflow-y-auto max-h-[calc(100vh-100px)]">
+                        {messages.map((msg, index) => (
+                            <div key={index} className={`message ${msg.sender.email === user.email ? 'ml-auto bg-cyan-200' : 'bg-slate-200'} ${msg.sender._id === 'ai' ? 'max-w-80' : 'max-w-52'}  flex flex-col p-2 m-2 rounded-lg  border border-gray-300`}>
+                                <small className='opacity-65'>{msg.sender.email}</small>
+                                <p className='p-2 rounded-lg'>{msg.sender._id === 'ai' ?
+                                    WriteAiMessage(msg.message)
+                                    : <p>{msg.message}</p>}</p>
+                            </div>
+                        ))}
+                    </div>
+
+
+                    <div className="inputField w-full flex absolute bottom-0 p-2 box bg-slate-100 z-10">
+                        <input
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            type='text' placeholder='Enter message' className='w-80 m-2 px-4 ps-1 border-none outline-none bg-white' />
+                        <button
+                            onClick={send}
+                            className='flex-grow bg bg-slate-950 rounded-md text-white px-3'><i className="ri-send-plane-fill "></i></button>
+                    </div>
+                </div>
+
+                {/* Animated Side Panel */}
+                <div className={`sidePanel w-full h-full flex flex-col gap-2 bg-slate-50 absolute transition-all ${isSidePanelOpen ? 'translate-x-0' : '-translate-x-full'} top-0`}>
+                    <header className='flex justify-between items-center px-4 p-2 bg-slate-200'>
+                        <h1 className='font-semibold text-lg'>Collaborators</h1>
+                        <button onClick={() => setIsSidePanelOpen(!isSidePanelOpen)} className='p-2'>
+                            <i className="ri-close-fill"></i>
+                        </button>
+                    </header>
+                    <div className="users flex flex-col gap-2">
+                        {project.users && project.users.map(user => (
+                            <div key={user._id} className="user cursor-pointer hover:bg-slate-200 p-2 flex gap-2 items-center">
+                                <div className='aspect-square rounded-full w-fit h-fit flex items-center justify-center p-5 text-white bg-slate-600'>
+                                    <i className="ri-user-fill absolute"></i>
+                                </div>
+                                <h1 className='font-semibold text-lg'>{user.email}</h1>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+            </section>
+
+            {/* Right Section */}
+
+
+            <section className="right  bg-red-50 flex-grow h-full flex">
+
+                <div className="explorer h-full max-w-64 min-w-52 bg-slate-200">
+                    <div className="file-tree w-full">
+                        {fileTree && Object.keys(fileTree).length > 0 ? (
+                            Object.keys(fileTree).map((file, index) => (
+                                <button
+                                    key={index}
+                                    onClick={() => {
+                                        setCurrentFile(file);
+                                        setOpenFiles([...new Set([...openFiles, file])]); // Ensure unique files
+                                    }}
+                                    className="tree-element cursor-pointer p-2 px-4 flex items-center gap-2 bg-slate-300 w-full">
+                                    <p className='font-semibold text-lg'>{file}</p>
+                                </button>
+                            ))
+                        ) : (
+                            <p className="text-center p-2">No files found</p>
+                        )}
+                    </div>
+
+
+                </div>
+
+                {
+                    currentFile && (
+
+                        <div className="code-editor flex flex-col flex-grow h-full shrink">
+
+                            <div className="top flex justify-between w-full ">
+                                <div className="files flex ">
+                                    {
+                                        openFiles.map((file, index) => (
+                                            <button
+                                                key={index}
+                                                onClick={() => setCurrentFile(file)}
+                                                className={`open-file cursor-pointer p-2 px-4 flex items-center w-fit gap-2 bg-slate-300 ${currentFile === file ? 'bg-slate-400' : ''}`}>
+                                                <p
+                                                    className='font-semibold text-lg'
+                                                >{file}</p>
+                                            </button>
+                                        ))
+                                    }
+                                </div>
+                            </div>
+                            <div className="bottom flex-grow flex max-w-full shrink overflow-auto ">
+                                {
+                                    fileTree[currentFile] && (
+                                        <div className="code-editor-area h-full overflow-auto flex-grow bg-slate-50">
+                                            <pre
+                                                className="hljs h-full">
+                                                <code
+                                                    className="hljs h-full outline-none"
+                                                    contentEditable
+                                                    suppressContentEditableWarning
+                                                    onBlur={(e) => {
+                                                        const updatedContent = e.target.innerText;
+                                                        const ft = {
+                                                            ...fileTree,
+                                                            [currentFile]: {
+                                                                file: {
+                                                                    contents: updatedContent
+                                                                }
+                                                            }
+                                                        }
+                                                        setFileTree(ft)
+                                                        
+                                                    }}
+                                                    dangerouslySetInnerHTML={{ __html: hljs.highlight('javascript', fileTree[currentFile].file.contents).value }}
+                                                    style={{
+                                                        whiteSpace: 'pre-wrap',
+                                                        paddingBottom: '25rem',
+                                                        counterSet: 'line-numbering',
+                                                    }}
+                                                />
+                                            </pre>
+                                        </div>
+                                    )
+                                }
+                            </div>
+
+                        </div>
+                    )}
+
+            </section>
+
+            {isModalOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                    <div className="bg-white p-4 rounded-md w-96 max-w-full relative">
+                        <header className='flex justify-between items-center mb-4'>
+                            <h2 className='text-xl font-semibold'>Select User</h2>
+                            <button onClick={() => setIsModalOpen(false)} className='p-2'>
+                                <i className="ri-close-fill"></i>
+                            </button>
+                        </header>
+                        <div className="users-list flex flex-col gap-2 mb-16 max-h-96 overflow-auto">
+                            {users
+                                .filter(user => !project.users.some(collaborator => collaborator._id === user._id))
+                                .map(user => (
+                                    <div
+                                        key={user._id}
+                                        className={`user cursor-pointer hover:bg-slate-300 ${selectedUserId.includes(user._id) ? 'bg-slate-200' : ''} p-2 flex gap-2 items-center`}
+                                        onClick={() => handleUserClick(user._id)}
+                                    >
+                                        <div className='aspect-square relative rounded-full w-fit h-fit flex items-center justify-center p-5 text-white bg-slate-600'>
+                                            <i className="ri-user-fill absolute"></i>
+                                        </div>
+                                        <h1 className='font-semibold text-lg'>{user.email}</h1>
+                                    </div>
+                                ))}
+                        </div>
+                        <button
+                            onClick={addCollaborators}
+                            className='absolute bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 bg-blue-600 text-white rounded-md'>
+                            Add Collaborators
+                        </button>
+                    </div>
+                </div>
+            )}
+        </main>
+    )
+}
+
+export default Project;
+
+
+
+
+-----------------------------------------------------------------------------------------------------------------------------------------
+
+
+import React, { useContext, useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
+import { UserContext } from '../Context/User.context';
+import axios from '../config/Axios';
+import { initializeSocket, receiveMessage, sendMessage, disconnectSocket } from '../config/Socket';
+import Markdown from 'markdown-to-jsx';
+import hljs from 'highlight.js';
+import 'highlight.js/styles/github.css'; // or any preferred theme
+import { getWebContainer } from '../config/webContainer';
+import Skeleton from "react-loading-skeleton";
+import "react-loading-skeleton/dist/skeleton.css";
+
+function SyntaxHighlightedCode({ className, children }) {
+    const ref = useRef(null);
+
+    useEffect(() => {
+        if (ref.current && className?.includes('lang-')) {
+            hljs.highlightElement(ref.current);
+        }
+    }, [className, children]);
+
+    return <code ref={ref} className={className}>{children}</code>;
+}
+
+
+
+const Project = () => {
+    const location = useLocation();
+    const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedUserId, setSelectedUserId] = useState([]);
+    const [users, setUsers] = useState([]);
+    const [project, setProject] = useState(location.state.project);
+    const [message, setMessage] = useState('');
+    const messagebox = useRef(null);
+    const [messages, setMessages] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [currentFile, setCurrentFile] = useState(null);
+    const [openFiles, setOpenFiles] = useState([])
+    const [webContainer, setWebContainer] = useState(null)
+    const [fileTree, setFileTree] = useState({});
+    const [iframeUrl, setIframeUrl] = useState(null);
+    const [runProcess, setRunProcess] = useState(null);
+    const [installed, setInstalled] = useState(false);
+    const [hoveredFile, setHoveredFile] = useState(null);
+
+    const { user } = useContext(UserContext);
+
+    useEffect(() => {
+        const socket = initializeSocket(project._id);
+
+        // const handleMessage = (data) => {
+
+        //     // console.log(data)
+
+        //     if (data.sender._id == 'ai') {
+
+        //         const message = JSON.parse(data.message);
+
+        //         // console.log(message)
+
+        //         if(!message){
+        //             setMessages([...messages, { text: "Prompt is wrong", sender: "ai" }]);
+        //         }else
+        //         {
+        //             webContainer?.mount(message.fileTree)
+
+        //             if (message.fileTree) {
+        //                 setFileTree(message.fileTree || {})
+        //             }
+        //             setMessages(prevMessages => [...prevMessages, data]) // Update messages state
+        //             setIsLoading(false);
+        //         }
+
+
+        //     } else {
+
+
+        //         setMessages(prevMessages => [...prevMessages, data]) // Update messages state
+        //     }
+
+
+
+        // };
+        const handleMessage = (data) => {
+
+
+            if (data.sender._id === 'ai') {
+                setIsLoading(true); // Start skeleton loading
+
+                // Start a timeout for 10 seconds
+                const timeout = setTimeout(() => {
+
+                    setIsLoading(false); // Stop skeleton loading
+                }, 10000);
+
+                try {
+                    const message = JSON.parse(data.message);
+
+                    if (message) {
+                        webContainer?.mount(message.fileTree);
+
+                        if (message.fileTree) {
+                            setFileTree(message.fileTree || {});
+                        }
+
+                        setMessages((prevMessages) => [...prevMessages, data]);
+                        clearTimeout(timeout); // Clear timeout if AI responds in time
+                        setIsLoading(false); // Stop loader after AI response
+                    }
+                } catch (error) {
+                    console.error("Error parsing AI message:", error);
+                    setMessages((prevMessages) => [
+                        ...prevMessages,
+                        { message: "Prompt is wrong or Modify the Prompt Better Instruction", sender: { email: "AI" } }
+                        // Show error if message parsing fails
+                    ]);
+                    setIsLoading(false); // Stop loading on error
+                }
+                console.log(messages)
+            } else {
+                setIsLoading(false)
+                setMessages((prevMessages) => [...prevMessages, data]);
+            }
+        };
+
+
+        if (!webContainer) {
+            getWebContainer().then(container => {
+                setWebContainer(container)
+                console.log("container created")
+            }
+            )
+        }
+
+        // const handleMessage = (data) => {
+
+
+        //     const message = JSON.parse(data.message)
+        //     if (message.fileTree) {
+        //         setFileTree(message.fileTree)
+        //     }
+        //     setMessages(prevMessages => [...prevMessages, data]) // Update messages state
+        // };
+
+
+
+        receiveMessage('project-message', handleMessage);
+
+        fetchUsers();
+
+        axios.get(`/project/get-project/${location.state.project._id}`).then(res => {
+            setProject(res.data.project);
+            setFileTree(res.data.project.fileTree || {})
+        });
+
+        return () => {
+            if (socket) {
+                socket.off('project-message', handleMessage); // Use the stored socket instance
+                socket.disconnect(); // Properly disconnect on component unmount
+            }
+        };
+    }, [project._id]);
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages]);
+
+    /// ano use atle thay che ke je data ai na response mathi ave te object base ave che to tene text base karva mate write ai function use thay  che.
+
+    function WriteAiMessage(message) {
+
+
+        const messageObject = JSON.parse(message)
+
+        return (
+            <div
+                className='overflow-auto bg-slate-950 text-white rounded-sm p-2'
+            >
+                <Markdown
+                    options={{
+                        overrides: {
+                            code: {
+                                component: SyntaxHighlightedCode,
+                            },
+                        },
+                    }}
+                >
+                    {messageObject.text}
+                </Markdown>
+            </div>)
+    }
+
+    // function WriteAiMessage(message) {
+    //     try {
+    //         const messageObject = JSON.parse(message);
+
+    //         if (!messageObject?.text) {
+    //             throw new Error("Invalid message format");
+    //         }
+
+    //         return (
+    //             <div className='overflow-auto bg-slate-950 text-white rounded-sm p-2'>
+    //                 <Markdown
+    //                     options={{
+    //                         overrides: {
+    //                             code: {
+    //                                 component: SyntaxHighlightedCode,
+    //                             },
+    //                         },
+    //                     }}
+    //                 >
+    //                     {messageObject.text}
+    //                 </Markdown>
+    //             </div>
+    //         );
+    //     } catch (error) {
+    //         console.error("Error parsing AI message:", error);
+    //         return (
+    //             <div className='overflow-auto bg-red-500 text-white rounded-sm p-2'>
+    //                 Prompt is wrong or modify the prompt with better instructions.
+    //             </div>
+    //         );
+    //     }
+    // }
+
+    // function WriteAiMessage(message) {
+    //     try {
+    //         // Ensure message is a string before parsing
+    //         if (typeof message !== "string") {
+    //             throw new Error("Message must be a JSON string.");
+    //         }
+
+    //         console.log("Received AI message:", message); // Debugging log
+
+    //         const messageObject = JSON.parse(message);
+
+    //         // Ensure messageObject contains text
+    //         if (!messageObject || typeof messageObject.text !== "string") {
+    //             throw new Error("Invalid message format: 'text' field missing or incorrect.");
+    //         }
+
+    //         return (
+    //             <div className='overflow-auto bg-slate-950 text-white rounded-sm p-2'>
+    //                 <Markdown
+    //                     options={{
+    //                         overrides: {
+    //                             code: {
+    //                                 component: SyntaxHighlightedCode,
+    //                             },
+    //                         },
+    //                     }}
+    //                 >
+    //                     {messageObject.text}
+    //                 </Markdown>
+    //             </div>
+    //         );
+    //     } catch (error) {
+    //         console.error("Error parsing AI message:", error);
+    //         return (
+    //             <div className='overflow-auto bg-red-500 text-white rounded-sm p-2'>
+    //                 Error: {error.message, message:"   Prompt is wrong or modify the prompt with better instructions."}
+
+    //             </div>
+    //         );
+    //     }
+    // }
+
+
+    // function WriteAiMessage(message) {
+    //     try {
+    //         // Ensure message is a string before parsing
+    //         if (typeof message !== "string") {
+    //             throw new Error("Message must be a JSON string.");
+    //         }
+
+    //         console.log("Received AI message:", message); // Debugging log
+
+    //         const messageObject = JSON.parse(message);
+
+    //         // Ensure messageObject contains text
+    //         if (!messageObject || typeof messageObject.text !== "string") {
+    //             throw new Error("Invalid message format: 'text' field missing or incorrect.");
+    //         }
+
+    //         return (
+    //             <div className='overflow-auto bg-slate-950 text-white rounded-sm p-2'>
+    //                 <Markdown
+    //                     options={{
+    //                         overrides: {
+    //                             code: {
+    //                                 component: SyntaxHighlightedCode,
+    //                             },
+    //                         },
+    //                     }}
+    //                 >
+    //                     {messageObject.text}
+    //                 </Markdown>
+    //             </div>
+    //         );
+    //     } catch (error) {
+    //         console.error("Error parsing AI message:", error);
+    //         return (
+    //             <div className='overflow-auto bg-red-500 text-white rounded-sm p-2'>
+    //                 <p>Error: {error.message}</p>
+    //                 <p>Prompt is wrong or modify the prompt with better instructions.</p>
+    //             </div>
+    //         );
+    //     }
+    // }
+
+    const scrollToBottom = () => {
+        if (messagebox.current) {
+            messagebox.current.scrollTop = messagebox.current.scrollHeight;
+        }
+    };
+
+    const send = (e) => {
+        e.preventDefault();
+
+        sendMessage('project-message', {
+            message,
+            sender: user
+        });
+        setMessages(prevMessages => [...prevMessages, { sender: user, message }]) // Update messages state
+        setMessage("")
+
+    };
+
+
+    // const send = (e) => {
+    //     e.preventDefault();
+
+    //     const newMessage = {
+    //         message,
+    //         sender: user,
+    //         projectId: project._id  // Ensure project ID is included
+    //     };
+
+    //     sendMessage('project-message', newMessage); // Send message via socket
+    //     setMessages((prevMessages) => [...prevMessages, newMessage]); // Update local state
+    //     setMessage('');
+    // };
+
+    const fetchUsers = async () => {
+        try {
+            const response = await axios.get('/user/all');
+            setUsers(response.data.users || []);
+        } catch (error) {
+            console.error('Error fetching users:', error);
+        }
+    };
+
+    const addCollaborators = async () => {
+        axios.put('/project/add-user', {
+            projectId: location.state.project._id,
+            users: selectedUserId
+        }).then((res) => {
+            console.log('Collaborators added:', res.data);
+            setIsModalOpen(false);
+            setSelectedUserId([]);
+        }).catch((error) => {
+            console.log('Error adding collaborators:', error);
+        });
+    };
+
+    const handleUserClick = (userId) => {
+        setSelectedUserId((prevSelected) => {
+            if (prevSelected.includes(userId)) {
+                return prevSelected.filter((id) => id !== userId);
+            }
+            return [...prevSelected, userId];
+        });
+    };
+
+    const toggleSidePanel = () => {
+        setIsSidePanelOpen(!isSidePanelOpen);
+    };
+
+    function saveFileTree(ft) {
+        axios.put('/project/update-file-tree', {
+            projectId: project._id,
+            fileTree: ft
+        }).then(res => {
+            console.log(res.data)
+        }).catch(err => {
+            console.log(err)
+        })
+    }
+
+
+    const handleCreateFile = () => {
+        // Prompt the user for a new file name
+        const fileName = prompt("Enter new file name");
+        if (!fileName) return; // Exit if no name provided
+
+        // Check if the file already exists
+        if (fileTree[fileName]) {
+            alert("File already exists!");
+            return;
+        }
+
+        // Create a new file object (you can customize the default content)
+        const newFile = { file: { contents: "" } };
+
+        // Update the file tree state with the new file
+        const updatedFileTree = { ...fileTree, [fileName]: newFile };
+        setFileTree(updatedFileTree);
+
+        // Optionally, open the file immediately by updating currentFile and openFiles
+        setCurrentFile(fileName);
+        setOpenFiles((prevFiles) => [...new Set([...prevFiles, fileName])]);
+
+        // Save the updated file tree to the database
+        saveFileTree(updatedFileTree);
+    };
+
+
+    const handleInstall = async () => {
+        console.log("Installing dependencies...");
+        // Install command execution
+
+        await webContainer.mount(fileTree);
+
+        const installProcess = await webContainer.spawn("npm", ["install"]);
+        installProcess.output.pipeTo(new WritableStream({
+            write(chunk) {
+                console.log(chunk);
+            }
+        }));
+        setTimeout(() => {
+            setInstalled(true); // After installation, show run button
+            console.log("Installation complete.");
+        }, 2000); // Simulating install delay
+    };
+
+    const handleRun = async () => {
+        console.log("Running the program...");
+        // Run command execution
+        if (runProcess) {
+            runProcess.kill();
+        }
+
+
+        let tempRunProcess = await webContainer.spawn("npm", ["start"]);
+        tempRunProcess.output.pipeTo(new WritableStream({
+            write(chunk) {
+                console.log(chunk);
+            }
+        }));
+
+        setRunProcess(tempRunProcess);
+
+        webContainer.on('server-ready', (port, url) => {
+            console.log(port, url);
+            setIframeUrl(url);
+        });
+    };
+
+    const deleteFile = async (fileName) => {
+        if (!fileTree[fileName]) return;
+    
+        // Show confirmation alert
+        const isConfirmed = window.confirm(`Are you sure you want to delete the file: ${fileName}?`);
+    
+        if (!isConfirmed) return; // If user cancels, do nothing
+    
+        try {
+            await axios.delete('/project/delete-file', {
+                data: {
+                    projectId: project._id,
+                    fileName: fileName
+                }
+            });
+    
+            // Update the UI by removing the file from the file tree
+            const updatedFileTree = { ...fileTree };
+            delete updatedFileTree[fileName];
+    
+            setFileTree(updatedFileTree);
+        } catch (error) {
+            console.error("Error deleting file:", error);
+        }
+    };
+    
+
+    // const handleInstall = async () => {
+    //     setInstalling(true);
+    //     await webContainer.mount(fileTree);
+
+    //     const installProcess = await webContainer.spawn("npm", ["install"]);
+    //     installProcess.output.pipeTo(new WritableStream({
+    //         write(chunk) {
+    //             console.log(chunk);
+    //         }
+    //     }));
+
+    //     setTimeout(() => {
+    //         setInstalling(false);
+    //         setInstalled(true);
+    //     }, 30000); // Show Run button after 30 seconds
+    // };
+
+    // const handleRun = async () => {
+    //     if (runProcess) {
+    //         runProcess.kill();
+    //     }
+
+    //     let tempRunProcess = await webContainer.spawn("npm", ["start"]);
+    //     tempRunProcess.output.pipeTo(new WritableStream({
+    //         write(chunk) {
+    //             console.log(chunk);
+    //         }
+    //     }));
+
+    //     setRunProcess(tempRunProcess);
+
+    //     webContainer.on('server-ready', (port, url) => {
+    //         console.log(port, url);
+    //         setIframeUrl(url);
+    //     });
+    // };
+    return (
+        <main className='h-screen w-screen flex flex-col md:flex-row'>
+            <section className="left relative flex flex-col h-screen min-w-96 max-w-80 bg-slate-300">
+                <header className='flex justify-between items-center p-2 px-4 w-full bg-slate-100 absolute z-10 top-0'>
+                    <button className='flex gap-2' onClick={() => setIsModalOpen(true)}>
+                        <i className="ri-add-fill mr-1"></i>
+                        <p>Add collaborator</p>
+                    </button>
+                    <button className="p-2" onClick={toggleSidePanel}>
+                        <i className="ri-group-fill"></i>
+                    </button>
+                </header>
+
+                <div className="conversation-area pb-10 flex-grow flex flex-col h-full relative">
+                    <div ref={messagebox} className="message-box overflow-anchor-none mt-14 mb-3 p-1 px-0 flex-grow flex flex-col overflow-auto relative scrollbar-hide overflow-y-auto max-h-[calc(100vh-100px)]">
+                        {messages.map((msg, index) => (
+                            <div key={index} className={`message ${msg.sender.email === user.email ? 'ml-auto bg-cyan-200' : 'bg-slate-200'} ${msg.sender._id === 'ai' ? 'max-w-80' : 'max-w-52'}  flex flex-col p-2 m-2 rounded-lg  border border-gray-300`}>
+                                <small className='opacity-65'>{msg.sender.email}</small>
+                                <p className='p-2 rounded-lg'>{msg.sender._id === 'ai' ?
+                                    WriteAiMessage(msg.message)
+                                    : <p>{msg.message}</p>}</p>
+                            </div>
+                        ))}
+                        {/* Show loader when waiting for AI response */}
+                        {/* {isLoading && (
+                            <div className="flex justify-center items-center p-3">
+                                <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-gray-700"></div>
+                            </div>
+                        )} */}
+
+                        {isLoading && (
+                            <div className="p-3 flex flex-col gap-2">
+                                <Skeleton height={20} width="80%" />
+                                <Skeleton height={15} width="60%" />
+                            </div>
+                        )}
+                    </div>
+
+
+                    <div className="inputField w-full flex absolute bottom-0 p-2 box bg-slate-100 z-10">
+                        <input
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            type='text' placeholder='Enter message' className='w-80 m-2 px-4 ps-1 border-none outline-none bg-white' />
+                        <button
+                            onClick={send}
+                            className='flex-grow bg bg-slate-950 rounded-md text-white px-3'><i className="ri-send-plane-fill "></i></button>
+                    </div>
+                </div>
+
+                {/* Animated Side Panel */}
+                <div className={`sidePanel w-full h-full flex flex-col gap-2 bg-slate-50 absolute transition-all ${isSidePanelOpen ? 'translate-x-0' : '-translate-x-full'} top-0`}>
+                    <header className='flex justify-between items-center px-4 p-2 bg-slate-200'>
+                        <h1 className='font-semibold text-lg'>Collaborators</h1>
+                        <button onClick={() => setIsSidePanelOpen(!isSidePanelOpen)} className='p-2'>
+                            <i className="ri-close-fill"></i>
+                        </button>
+                    </header>
+                    <div className="users flex flex-col gap-2">
+                        {project.users && project.users.map(user => (
+                            <div key={user._id} className="user cursor-pointer hover:bg-slate-200 p-2 flex gap-2 items-center">
+                                <div className='aspect-square rounded-full w-fit h-fit flex items-center justify-center p-5 text-white bg-slate-600'>
+                                    <i className="ri-user-fill absolute"></i>
+                                </div>
+                                <h1 className='font-semibold text-lg'>{user.email}</h1>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+            </section>
+
+            {/* Right Section */}
+
+
+            <section className="right  bg-red-50 flex-grow h-full flex">
+
+                <div className="explorer h-full max-w-64 min-w-52 bg-slate-200">
+                    {/* <div className="file-tree w-full">
+                        {fileTree && Object.keys(fileTree).length > 0 ? (
+                            Object.keys(fileTree).map((file, index) => (
+                                <button
+                                    key={index}
+                                    onClick={() => {
+                                        setCurrentFile(file);
+                                        setOpenFiles([...new Set([...openFiles, file])]); // Ensure unique files
+                                    }}
+                                    className="tree-element cursor-pointer p-2 px-4 flex items-center gap-2 bg-slate-300 w-full">
+                                    <p className='font-semibold text-lg'>{file}</p>
+                                </button>
+                            ))
+                        ) : (
+                            <p className="text-center p-2">No files found</p>
+                        )}
+                    </div> */}
+
+                    <div className="file-tree w-full">
+                        {/* Plus icon button to create a new file */}
+                        <button
+                            onClick={handleCreateFile}
+                            className="tree-element cursor-pointer p-2 px-4 flex items-center gap-2 bg-slate-300 w-full"
+                        >
+                            <i className="ri-add-line"></i>
+                            <p className='font-semibold text-lg'>New File</p>
+                        </button>
+                        {fileTree && Object.keys(fileTree).length > 0 ? (
+                            Object.keys(fileTree).map((file, index) => (
+                                <button
+                                    key={index}
+                                    onClick={() => {
+                                        setCurrentFile(file);
+                                        setOpenFiles([...new Set([...openFiles, file])]); // Ensure unique files
+                                    }}
+                                    onMouseEnter={() => setHoveredFile(file)}
+                                    onMouseLeave={() => setHoveredFile(null)}
+                                    className="tree-element cursor-pointer p-2 px-4 flex items-center justify-between gap-2 bg-slate-300 w-full"
+                                >
+                                    <p className='font-semibold text-lg'>{file}</p>
+
+                                    {/* Show delete button only when hovered */}
+                                    {hoveredFile === file && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation(); // Prevent triggering file selection
+                                                deleteFile(file);
+                                            }}
+                                            className="ml-2 text-red-500 hover:text-red-700"
+                                        >
+                                            ❌
+                                        </button>
+                                    )}
+                                </button>
+                                       
+                                
+                    ))
+                    ) : (
+                    <p className="text-center p-2">No files found</p>
+                        )}
+                </div>
+
+
+
+            </div>
+
+            {
+                currentFile && (
+
+                    <div className="code-editor flex flex-col flex-grow h-full shrink">
+
+                        <div className="top flex justify-between w-full ">
+                            <div className="files flex ">
+                                {
+                                    openFiles.map((file, index) => (
+                                        <button
+                                            key={index}
+                                            onClick={() => setCurrentFile(file)}
+                                            className={`open-file cursor-pointer p-2 px-4 flex items-center w-fit gap-2 bg-slate-300 ${currentFile === file ? 'bg-slate-400' : ''}`}>
+                                            <p
+                                                className='font-semibold text-lg'
+                                            >{file}</p>
+                                        </button>
+                                    ))
+                                }
+                            </div>
+                            
+                                <div className="actions flex gap-2">
+                                    <button
+                                        onClick={async () => {
+                                            await webContainer.mount(fileTree)
+
+
+                                            const installProcess = await webContainer.spawn("npm", ["install"])
+
+
+
+                                            installProcess.output.pipeTo(new WritableStream({
+                                                write(chunk) {
+                                                    console.log(chunk)
+                                                }
+                                            }))
+
+
+                                            if (runProcess) {
+                                                runProcess.kill()
+                                            }
+
+                                            let tempRunProcess = await webContainer.spawn("npm", ["start"]);
+
+                                            tempRunProcess.output.pipeTo(new WritableStream({
+                                                write(chunk) {
+                                                    console.log(chunk)
+                                                }
+                                            }))
+
+                                            setRunProcess(tempRunProcess)
+
+
+                                            webContainer.on('server-ready', (port, url) => {
+                                                console.log(port, url)
+                                                setIframeUrl(url)
+                                            })
+
+                                        }}
+                                        className='p-2 px-4 bg-slate-800  text-white'
+                                    >
+                                        run
+                                    </button>
+
+
+                                </div>
+
+                            {/* <div className="flex flex-col items-center gap-4 p-4">
+                                {!installed ? (
+                                    <button
+                                        onClick={handleInstall}
+                                        className="px-4 py-2 bg-blue-500 text-white rounded-lg"
+                                    >
+                                        Install
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={handleRun}
+                                        className="px-4 py-2 bg-green-500 text-white rounded-lg"
+                                    >
+                                        Run
+                                    </button>
+                                )}
+                            </div> */}
+
+
+                        </div>
+                        <div className="bottom flex-grow flex max-w-full shrink overflow-auto ">
+                            {
+                                fileTree[currentFile] && (
+                                    <div className="code-editor-area h-full overflow-auto flex-grow bg-slate-50">
+                                        <pre
+                                            className="hljs h-full">
+                                            <code
+                                                className="hljs h-full outline-none"
+                                                contentEditable
+                                                suppressContentEditableWarning
+                                                onBlur={(e) => {
+                                                    const updatedContent = e.target.innerText;
+                                                    const ft = {
+                                                        ...fileTree,
+                                                        [currentFile]: {
+                                                            file: {
+                                                                contents: updatedContent
+                                                            }
+                                                        }
+                                                    }
+                                                    setFileTree(ft)
+                                                    saveFileTree(ft)
+                                                }}
+                                                dangerouslySetInnerHTML={{ __html: hljs.highlight('javascript', fileTree[currentFile].file.contents).value }}
+                                                style={{
+                                                    whiteSpace: 'pre-wrap',
+                                                    paddingBottom: '25rem',
+                                                    counterSet: 'line-numbering',
+                                                }}
+                                            />
+                                        </pre>
+                                    </div>
+                                )
+                            }
+                        </div>
+
+                    </div>
+                )}
+
+            {iframeUrl && webContainer &&
+                (<div className="flex min-w-96 flex-col h-full">
+                    <div className="address-bar">
+                        <input type="text"
+                            onChange={(e) => setIframeUrl(e.target.value)}
+                            value={iframeUrl} className="w-full p-2 px-4 bg-slate-200" />
+                    </div>
+                    <iframe src={iframeUrl} className="w-full h-full"></iframe>
+                </div>)
+            }
+        </section>
+
+            {
+        isModalOpen && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                <div className="bg-white p-4 rounded-md w-96 max-w-full relative">
+                    <header className='flex justify-between items-center mb-4'>
+                        <h2 className='text-xl font-semibold'>Select User</h2>
+                        <button onClick={() => setIsModalOpen(false)} className='p-2'>
+                            <i className="ri-close-fill"></i>
+                        </button>
+                    </header>
+                    <div className="users-list flex flex-col gap-2 mb-16 max-h-96 overflow-auto">
+                        {users
+                            .filter(user => !project.users.some(collaborator => collaborator._id === user._id))
+                            .map(user => (
+                                <div
+                                    key={user._id}
+                                    className={`user cursor-pointer hover:bg-slate-300 ${selectedUserId.includes(user._id) ? 'bg-slate-200' : ''} p-2 flex gap-2 items-center`}
+                                    onClick={() => handleUserClick(user._id)}
+                                >
+                                    <div className='aspect-square relative rounded-full w-fit h-fit flex items-center justify-center p-5 text-white bg-slate-600'>
+                                        <i className="ri-user-fill absolute"></i>
+                                    </div>
+                                    <h1 className='font-semibold text-lg'>{user.email}</h1>
+                                </div>
+                            ))}
+                    </div>
+                    <button
+                        onClick={addCollaborators}
+                        className='absolute bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 bg-blue-600 text-white rounded-md'>
+                        Add Collaborators
+                    </button>
+                </div>
+            </div>
+        )
+    }
+        </main >
+    )
+}
+
+export default Project;
+
