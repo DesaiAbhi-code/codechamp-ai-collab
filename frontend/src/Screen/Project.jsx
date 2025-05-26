@@ -215,7 +215,7 @@ const Project = () => {
         });
         setMessages(prevMessages => [...prevMessages, { sender: user, message }]) // Update messages state
         setMessage("")
-        // console.log(messages)
+        console.log(messages)
 
     };
 
@@ -274,7 +274,7 @@ const Project = () => {
             projectId: project._id,
             fileTree: ft
         }).then(res => {
-            // console.log(res.data)
+            console.log(res.data)
         }).catch(err => {
             console.log(err)
         })
@@ -308,46 +308,119 @@ const Project = () => {
     };
 
 
+    // const handleInstall = async () => {
+    //     console.log("Installing dependencies...");
+    //     // Install command execution
+
+    //     await webContainer.mount(fileTree);
+
+    //     const installProcess = await webContainer.spawn("npm", ["install"]);
+    //     installProcess.output.pipeTo(new WritableStream({
+    //         write(chunk) {
+    //             console.log(chunk);
+    //         }
+    //     }));
+    //     setTimeout(() => {
+    //         setInstalled(true); // After installation, show run button
+    //         console.log("Installation complete.");
+    //     }, 2000); // Simulating install delay
+    // };
+
+
     const handleInstall = async () => {
-        console.log("Installing dependencies...");
-        // Install command execution
-
-        await webContainer.mount(fileTree);
-
-        const installProcess = await webContainer.spawn("npm", ["install"]);
-        installProcess.output.pipeTo(new WritableStream({
-            write(chunk) {
-                // console.log(chunk);
-            }
-        }));
-        setTimeout(() => {
-            setInstalled(true); // After installation, show run button
-            console.log("Installation complete.");
-        }, 2000); // Simulating install delay
-    };
-
-    const handleRun = async () => {
-        console.log("Running the program...");
-        // Run command execution
-        if (runProcess) {
-            runProcess.kill();
+        if (!webContainer) {
+            setErrorMessage('Web container is not ready yet. Please wait and try again.');
+            return;
         }
 
+        try {
+            console.log("Installing dependencies...");
+            await webContainer.mount(fileTree);
 
-        let tempRunProcess = await webContainer.spawn("npm", ["start"]);
-        tempRunProcess.output.pipeTo(new WritableStream({
-            write(chunk) {
-                // console.log(chunk);
-            }
-        }));
+            const installProcess = await webContainer.spawn("npm", ["install"]);
+            installProcess.output.pipeTo(new WritableStream({
+                write(chunk) {
+                    console.log(chunk);
+                }
+            }));
 
-        setRunProcess(tempRunProcess);
+            setTimeout(() => {
+                setInstalled(true);
+                console.log("Installation complete.");
+            }, 2000);
 
-        webContainer.on('server-ready', (port, url) => {
-            console.log(port, url);
-            setIframeUrl(url);
-        });
+            setErrorMessage('');
+        } catch (error) {
+            console.error("Installation error:", error);
+            setErrorMessage('Failed to install dependencies.');
+        }
     };
+
+    // const handleRun = async () => {
+    //     console.log("Running the program...");
+    //     // Run command execution
+    //     if (runProcess) {
+    //         runProcess.kill();
+    //     }
+
+
+    //     let tempRunProcess = await webContainer.spawn("npm", ["start"]);
+    //     tempRunProcess.output.pipeTo(new WritableStream({
+    //         write(chunk) {
+    //             console.log(chunk);
+    //         }
+    //     }));
+
+    //     setRunProcess(tempRunProcess);
+
+    //     webContainer.on('server-ready', (port, url) => {
+    //         console.log(port, url);
+    //         setIframeUrl(url);
+    //     });
+    // };
+
+    const handleRun = async () => {
+        if (!webContainer) {
+            setErrorMessage('Web container is not ready yet. Please wait and try again.');
+            return;
+        }
+
+        try {
+            console.log("Running the program...");
+            if (runProcess) runProcess.kill();
+
+            const tempRunProcess = await webContainer.spawn("npm", ["start"]);
+            tempRunProcess.output.pipeTo(new WritableStream({
+                write(chunk) {
+                    console.log(chunk);
+                }
+            }));
+
+            setRunProcess(tempRunProcess);
+
+            webContainer.on('server-ready', (port, url) => {
+                console.log(port, url);
+                setIframeUrl(url);
+            });
+
+            setErrorMessage('');
+        } catch (error) {
+            console.error("Run error:", error);
+            setErrorMessage('Failed to start the project.');
+        }
+    };
+
+    useEffect(() => {
+        if (!webContainer) {
+            getWebContainer().then(container => {
+                setWebContainer(container);
+                console.log("✅ Web container initialized");
+            }).catch(err => {
+                console.error("❌ Failed to initialize web container", err);
+                setErrorMessage("Failed to initialize the web container.");
+            });
+        }
+    }, []);
 
     const deleteFile = async (fileName) => {
         if (!fileTree[fileName]) return;
@@ -414,11 +487,11 @@ const Project = () => {
     return (
         <main className='h-screen w-screen flex flex-col md:flex-row bg-gradient-to-br from-gray-900 to-gray-800 text-white'>
             {/* Left Section - Chat Panel */}
-              {errorMessage && (
-          <div className="p-3 text-sm text-red-400 bg-red-100 rounded-md">
-            {errorMessage}
-          </div>
-        )}
+            {errorMessage && (
+                <div className="p-3 text-sm text-red-400 bg-red-100 rounded-md">
+                    {errorMessage}
+                </div>
+            )}
 
             <section className="left relative flex flex-col h-screen min-w-96 max-w-80 bg-gray-800 shadow-2xl">
                 <header className='flex justify-between items-center p-4 w-full bg-gray-900 absolute z-10 top-0'>
@@ -439,52 +512,52 @@ const Project = () => {
 
                 {/* Chat Messages */}
                 <div className="conversation-area pb-10 flex-grow flex flex-col h-full relative">
-    <div
-        ref={messagebox}
-        className="message-box overflow-anchor-none mt-14 mb-3 p-1 px-0 flex-grow flex flex-col overflow-auto relative scrollbar-hide overflow-y-auto max-h-[calc(100vh-100px)]"
-    >
-        {messages.map((msg, index) => (
-            <div
-                key={index}
-                className={`message ${msg.sender.email === user.email ? 'ml-auto' : ''} ${msg.sender._id === 'ai' ? 'max-w-80' : 'max-w-52'} flex flex-col p-3 m-2 rounded-lg transition-all`}
-                style={{
-                    background: msg.sender.email === user.email
-                        ? '#3b82f6' // Blue background for user's messages
-                        : '#4b5563', // Gray background for others' messages
-                    color: 'white', // White text for better contrast
-                }}
-            >
-                <small className='opacity-65 text-gray-200'>{msg.sender.email}</small>
-                <p className='p-2 rounded-lg'>
-                    {msg.sender._id === 'ai' ? WriteAiMessage(msg.message) : msg.message}
-                </p>
-            </div>
-        ))}
-        {isLoading && (
-            <div className="p-3 flex flex-col gap-2">
-                <Skeleton height={20} width="80%" baseColor="#e5e7eb" highlightColor="#f3f4f6" />
-                <Skeleton height={15} width="60%" baseColor="#e5e7eb" highlightColor="#f3f4f6" />
-            </div>
-        )}
-    </div>
+                    <div
+                        ref={messagebox}
+                        className="message-box overflow-anchor-none mt-14 mb-3 p-1 px-0 flex-grow flex flex-col overflow-auto relative scrollbar-hide overflow-y-auto max-h-[calc(100vh-100px)]"
+                    >
+                        {messages.map((msg, index) => (
+                            <div
+                                key={index}
+                                className={`message ${msg.sender.email === user.email ? 'ml-auto' : ''} ${msg.sender._id === 'ai' ? 'max-w-80' : 'max-w-52'} flex flex-col p-3 m-2 rounded-lg transition-all`}
+                                style={{
+                                    background: msg.sender.email === user.email
+                                        ? '#3b82f6' // Blue background for user's messages
+                                        : '#4b5563', // Gray background for others' messages
+                                    color: 'white', // White text for better contrast
+                                }}
+                            >
+                                <small className='opacity-65 text-gray-200'>{msg.sender.email}</small>
+                                <p className='p-2 rounded-lg'>
+                                    {msg.sender._id === 'ai' ? WriteAiMessage(msg.message) : msg.message}
+                                </p>
+                            </div>
+                        ))}
+                        {isLoading && (
+                            <div className="p-3 flex flex-col gap-2">
+                                <Skeleton height={20} width="80%" baseColor="#e5e7eb" highlightColor="#f3f4f6" />
+                                <Skeleton height={15} width="60%" baseColor="#e5e7eb" highlightColor="#f3f4f6" />
+                            </div>
+                        )}
+                    </div>
 
-    {/* Message Input Field */}
-    <div className="inputField w-full flex absolute bottom-0 p-2 box bg-white z-10 border-t border-gray-200">
-        <input
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            type='text'
-            placeholder='Enter message'
-            className='w-80 m-2 px-4 ps-1 border border-gray-300 outline-none bg-white text-gray-900 rounded-lg placeholder-gray-400 focus:ring-2 focus:ring-blue-500 transition-all'
-        />
-        <button
-            onClick={send}
-            className='flex-grow bg-blue-600 hover:bg-blue-700 rounded-lg text-white px-3 transition-all'
-        >
-            <i className="ri-send-plane-fill"></i>
-        </button>
-    </div>
-</div>
+                    {/* Message Input Field */}
+                    <div className="inputField w-full flex absolute bottom-0 p-2 box bg-white z-10 border-t border-gray-200">
+                        <input
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            type='text'
+                            placeholder='Enter message'
+                            className='w-80 m-2 px-4 ps-1 border border-gray-300 outline-none bg-white text-gray-900 rounded-lg placeholder-gray-400 focus:ring-2 focus:ring-blue-500 transition-all'
+                        />
+                        <button
+                            onClick={send}
+                            className='flex-grow bg-blue-600 hover:bg-blue-700 rounded-lg text-white px-3 transition-all'
+                        >
+                            <i className="ri-send-plane-fill"></i>
+                        </button>
+                    </div>
+                </div>
 
                 {/* Side Panel - Collaborators */}
                 <div className={`sidePanel w-full h-full flex flex-col gap-2 bg-gray-900 absolute transition-all ${isSidePanelOpen ? 'translate-x-0' : '-translate-x-full'} top-0 shadow-2xl`}>
