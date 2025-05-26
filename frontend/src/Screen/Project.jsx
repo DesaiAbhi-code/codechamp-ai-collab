@@ -22,8 +22,6 @@ function SyntaxHighlightedCode({ className, children }) {
     return <code ref={ref} className={className}>{children}</code>;
 }
 
-
-
 const Project = () => {
     const location = useLocation();
     const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
@@ -44,6 +42,7 @@ const Project = () => {
     const [installed, setInstalled] = useState(false);
     const [hoveredFile, setHoveredFile] = useState(null);
     const [errorMessage, setErrorMessage] = useState('');
+    const [isInstalling, setIsInstalling] = useState(false);
 
     const { user } = useContext(UserContext);
 
@@ -74,9 +73,9 @@ const Project = () => {
                     console.log("Parsed AI message:", message);
 
                     if (message && (message.fileTree || message.text)) {
-                        if (message.fileTree) {
+                        if (message.fileTree && webContainer) {
                             console.log("Mounting file tree from AI response.");
-                            webContainer?.mount(message.fileTree);
+                            webContainer.mount(message.fileTree);
                             setFileTree(message.fileTree || {});
                         }
 
@@ -111,12 +110,8 @@ const Project = () => {
             }
         };
 
-        if (!webContainer) {
-            getWebContainer().then(container => {
-                setWebContainer(container)
-                console.log("container created")
-            })
-        }
+        // Initialize webContainer
+        initializeWebContainer();
 
         receiveMessage('project-message', handleMessage);
 
@@ -125,6 +120,9 @@ const Project = () => {
         axios.get(`/project/get-project/${location.state.project._id}`).then(res => {
             setProject(res.data.project);
             setFileTree(res.data.project.fileTree || {})
+        }).catch(err => {
+            console.error("Error fetching project:", err);
+            setErrorMessage("Failed to load project data");
         });
 
         return () => {
@@ -135,34 +133,21 @@ const Project = () => {
         };
     }, [project._id]);
 
+    const initializeWebContainer = async () => {
+        try {
+            console.log("Initializing webContainer...");
+            const container = await getWebContainer();
+            setWebContainer(container);
+            console.log("WebContainer initialized successfully");
+        } catch (error) {
+            console.error("Error initializing webContainer:", error);
+            setErrorMessage("Failed to initialize development environment");
+        }
+    };
+
     useEffect(() => {
         scrollToBottom();
     }, [messages]);
-
-    /// ano use atle thay che ke je data ai na response mathi ave te object base ave che to tene text base karva mate write ai function use thay  che.
-
-    // function WriteAiMessage(message) {
-
-
-    //     const messageObject = JSON.parse(message)
-
-    //     return (
-    //         <div
-    //             className='overflow-auto bg-slate-950 text-white rounded-sm p-2'
-    //         >
-    //             <Markdown
-    //                 options={{
-    //                     overrides: {
-    //                         code: {
-    //                             component: SyntaxHighlightedCode,
-    //                         },
-    //                     },
-    //                 }}
-    //             >
-    //                 {messageObject.text}
-    //             </Markdown>
-    //         </div>)
-    // }
 
     function WriteAiMessage(message) {
         try {
@@ -198,8 +183,6 @@ const Project = () => {
         }
     }
 
-
-
     const scrollToBottom = () => {
         if (messagebox.current) {
             messagebox.current.scrollTop = messagebox.current.scrollHeight;
@@ -215,24 +198,7 @@ const Project = () => {
         });
         setMessages(prevMessages => [...prevMessages, { sender: user, message }]) // Update messages state
         setMessage("")
-        // console.log(messages)
-
     };
-
-
-    // const send = (e) => {
-    //     e.preventDefault();
-
-    //     const newMessage = {
-    //         message,
-    //         sender: user,
-    //         projectId: project._id  // Ensure project ID is included
-    //     };
-
-    //     sendMessage('project-message', newMessage); // Send message via socket
-    //     setMessages((prevMessages) => [...prevMessages, newMessage]); // Update local state
-    //     setMessage('');
-    // };
 
     const fetchUsers = async () => {
         try {
@@ -240,20 +206,23 @@ const Project = () => {
             setUsers(response.data.users || []);
         } catch (error) {
             console.error('Error fetching users:', error);
+            setErrorMessage("Failed to fetch users");
         }
     };
 
     const addCollaborators = async () => {
-        axios.put('/project/add-user', {
-            projectId: location.state.project._id,
-            users: selectedUserId
-        }).then((res) => {
+        try {
+            const res = await axios.put('/project/add-user', {
+                projectId: location.state.project._id,
+                users: selectedUserId
+            });
             console.log('Collaborators added:', res.data);
             setIsModalOpen(false);
             setSelectedUserId([]);
-        }).catch((error) => {
+        } catch (error) {
             console.log('Error adding collaborators:', error);
-        });
+            setErrorMessage("Failed to add collaborators");
+        }
     };
 
     const handleUserClick = (userId) => {
@@ -277,9 +246,9 @@ const Project = () => {
             // console.log(res.data)
         }).catch(err => {
             console.log(err)
+            setErrorMessage("Failed to save file tree");
         })
     }
-
 
     const handleCreateFile = () => {
         // Prompt the user for a new file name
@@ -292,7 +261,7 @@ const Project = () => {
             return;
         }
 
-        // Create a new file object (you can customize the default content)
+        // Create a new file object
         const newFile = { file: { contents: "" } };
 
         // Update the file tree state with the new file
@@ -307,54 +276,94 @@ const Project = () => {
         saveFileTree(updatedFileTree);
     };
 
-
     const handleInstall = async () => {
-        console.log("Installing dependencies...");
-        // Install command execution
+        // Check if webContainer is initialized
+        if (!webContainer) {
+            console.error("WebContainer not initialized");
+            setErrorMessage("Development environment not ready. Please wait and try again.");
+            return;
+        }
 
-        await webContainer.mount(fileTree);
+        if (isInstalling) {
+            console.log("Installation already in progress");
+            return;
+        }
 
-        const installProcess = await webContainer.spawn("npm", ["install"]);
-        installProcess.output.pipeTo(new WritableStream({
-            write(chunk) {
-                // console.log(chunk);
+        try {
+            setIsInstalling(true);
+            console.log("Installing dependencies...");
+            
+            // Mount the file tree
+            await webContainer.mount(fileTree);
+
+            // Install command execution
+            const installProcess = await webContainer.spawn("npm", ["install"]);
+            
+            installProcess.output.pipeTo(new WritableStream({
+                write(chunk) {
+                    console.log(chunk);
+                }
+            }));
+
+            // Wait for installation to complete
+            const exitCode = await installProcess.exit;
+            
+            if (exitCode === 0) {
+                setInstalled(true);
+                console.log("Installation completed successfully");
+                setErrorMessage(''); // Clear any previous errors
+            } else {
+                throw new Error(`Installation failed with exit code: ${exitCode}`);
             }
-        }));
-        setTimeout(() => {
-            setInstalled(true); // After installation, show run button
-            console.log("Installation complete.");
-        }, 2000); // Simulating install delay
+        } catch (error) {
+            console.error("Installation error:", error);
+            setErrorMessage("Installation failed. Please check your package.json and try again.");
+        } finally {
+            setIsInstalling(false);
+        }
     };
 
     const handleRun = async () => {
-        console.log("Running the program...");
-        // Run command execution
-        if (runProcess) {
-            runProcess.kill();
+        // Check if webContainer is initialized
+        if (!webContainer) {
+            console.error("WebContainer not initialized");
+            setErrorMessage("Development environment not ready. Please install dependencies first.");
+            return;
         }
 
-
-        let tempRunProcess = await webContainer.spawn("npm", ["start"]);
-        tempRunProcess.output.pipeTo(new WritableStream({
-            write(chunk) {
-                // console.log(chunk);
+        try {
+            console.log("Running the program...");
+            
+            // Kill existing process if running
+            if (runProcess) {
+                runProcess.kill();
             }
-        }));
 
-        setRunProcess(tempRunProcess);
+            let tempRunProcess = await webContainer.spawn("npm", ["start"]);
+            tempRunProcess.output.pipeTo(new WritableStream({
+                write(chunk) {
+                    console.log(chunk);
+                }
+            }));
 
-        webContainer.on('server-ready', (port, url) => {
-            console.log(port, url);
-            setIframeUrl(url);
-        });
+            setRunProcess(tempRunProcess);
+
+            webContainer.on('server-ready', (port, url) => {
+                console.log(`Server ready on port ${port}: ${url}`);
+                setIframeUrl(url);
+                setErrorMessage(''); // Clear any previous errors
+            });
+        } catch (error) {
+            console.error("Run error:", error);
+            setErrorMessage("Failed to run the application. Please check your code and try again.");
+        }
     };
 
     const deleteFile = async (fileName) => {
         if (!fileTree[fileName]) return;
 
         const isConfirmed = window.confirm(`Are you sure you want to delete the file: ${fileName}?`);
-
-        if (!isConfirmed) return; // If user cancels, do nothing
+        if (!isConfirmed) return;
 
         try {
             await axios.delete('/project/delete-file', {
@@ -369,56 +378,27 @@ const Project = () => {
             delete updatedFileTree[fileName];
 
             setFileTree(updatedFileTree);
-            saveFileTree(updatedFileTree); // Save the updated file tree to the database
+            saveFileTree(updatedFileTree);
         } catch (error) {
             console.error("Error deleting file:", error);
+            setErrorMessage("Failed to delete file");
         }
     };
 
-    // const handleInstall = async () => {
-    //     setInstalling(true);
-    //     await webContainer.mount(fileTree);
-
-    //     const installProcess = await webContainer.spawn("npm", ["install"]);
-    //     installProcess.output.pipeTo(new WritableStream({
-    //         write(chunk) {
-    //             console.log(chunk);
-    //         }
-    //     }));
-
-    //     setTimeout(() => {
-    //         setInstalling(false);
-    //         setInstalled(true);
-    //     }, 30000); // Show Run button after 30 seconds
-    // };
-
-    // const handleRun = async () => {
-    //     if (runProcess) {
-    //         runProcess.kill();
-    //     }
-
-    //     let tempRunProcess = await webContainer.spawn("npm", ["start"]);
-    //     tempRunProcess.output.pipeTo(new WritableStream({
-    //         write(chunk) {
-    //             console.log(chunk);
-    //         }
-    //     }));
-
-    //     setRunProcess(tempRunProcess);
-
-    //     webContainer.on('server-ready', (port, url) => {
-    //         console.log(port, url);
-    //         setIframeUrl(url);
-    //     });
-    // };
     return (
         <main className='h-screen w-screen flex flex-col md:flex-row bg-gradient-to-br from-gray-900 to-gray-800 text-white'>
             {/* Left Section - Chat Panel */}
-              {errorMessage && (
-          <div className="p-3 text-sm text-red-400 bg-red-100 rounded-md">
-            {errorMessage}
-          </div>
-        )}
+            {errorMessage && (
+                <div className="fixed top-4 right-4 z-50 p-3 text-sm text-red-400 bg-red-900 rounded-md shadow-lg">
+                    {errorMessage}
+                    <button 
+                        onClick={() => setErrorMessage('')}
+                        className="ml-2 text-red-300 hover:text-red-100"
+                    >
+                        ×
+                    </button>
+                </div>
+            )}
 
             <section className="left relative flex flex-col h-screen min-w-96 max-w-80 bg-gray-800 shadow-2xl">
                 <header className='flex justify-between items-center p-4 w-full bg-gray-900 absolute z-10 top-0'>
@@ -439,52 +419,52 @@ const Project = () => {
 
                 {/* Chat Messages */}
                 <div className="conversation-area pb-10 flex-grow flex flex-col h-full relative">
-    <div
-        ref={messagebox}
-        className="message-box overflow-anchor-none mt-14 mb-3 p-1 px-0 flex-grow flex flex-col overflow-auto relative scrollbar-hide overflow-y-auto max-h-[calc(100vh-100px)]"
-    >
-        {messages.map((msg, index) => (
-            <div
-                key={index}
-                className={`message ${msg.sender.email === user.email ? 'ml-auto' : ''} ${msg.sender._id === 'ai' ? 'max-w-80' : 'max-w-52'} flex flex-col p-3 m-2 rounded-lg transition-all`}
-                style={{
-                    background: msg.sender.email === user.email
-                        ? '#3b82f6' // Blue background for user's messages
-                        : '#4b5563', // Gray background for others' messages
-                    color: 'white', // White text for better contrast
-                }}
-            >
-                <small className='opacity-65 text-gray-200'>{msg.sender.email}</small>
-                <p className='p-2 rounded-lg'>
-                    {msg.sender._id === 'ai' ? WriteAiMessage(msg.message) : msg.message}
-                </p>
-            </div>
-        ))}
-        {isLoading && (
-            <div className="p-3 flex flex-col gap-2">
-                <Skeleton height={20} width="80%" baseColor="#e5e7eb" highlightColor="#f3f4f6" />
-                <Skeleton height={15} width="60%" baseColor="#e5e7eb" highlightColor="#f3f4f6" />
-            </div>
-        )}
-    </div>
+                    <div
+                        ref={messagebox}
+                        className="message-box overflow-anchor-none mt-14 mb-3 p-1 px-0 flex-grow flex flex-col overflow-auto relative scrollbar-hide overflow-y-auto max-h-[calc(100vh-100px)]"
+                    >
+                        {messages.map((msg, index) => (
+                            <div
+                                key={index}
+                                className={`message ${msg.sender.email === user.email ? 'ml-auto' : ''} ${msg.sender._id === 'ai' ? 'max-w-80' : 'max-w-52'} flex flex-col p-3 m-2 rounded-lg transition-all`}
+                                style={{
+                                    background: msg.sender.email === user.email
+                                        ? '#3b82f6' // Blue background for user's messages
+                                        : '#4b5563', // Gray background for others' messages
+                                    color: 'white', // White text for better contrast
+                                }}
+                            >
+                                <small className='opacity-65 text-gray-200'>{msg.sender.email}</small>
+                                <p className='p-2 rounded-lg'>
+                                    {msg.sender._id === 'ai' ? WriteAiMessage(msg.message) : msg.message}
+                                </p>
+                            </div>
+                        ))}
+                        {isLoading && (
+                            <div className="p-3 flex flex-col gap-2">
+                                <Skeleton height={20} width="80%" baseColor="#e5e7eb" highlightColor="#f3f4f6" />
+                                <Skeleton height={15} width="60%" baseColor="#e5e7eb" highlightColor="#f3f4f6" />
+                            </div>
+                        )}
+                    </div>
 
-    {/* Message Input Field */}
-    <div className="inputField w-full flex absolute bottom-0 p-2 box bg-white z-10 border-t border-gray-200">
-        <input
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            type='text'
-            placeholder='Enter message'
-            className='w-80 m-2 px-4 ps-1 border border-gray-300 outline-none bg-white text-gray-900 rounded-lg placeholder-gray-400 focus:ring-2 focus:ring-blue-500 transition-all'
-        />
-        <button
-            onClick={send}
-            className='flex-grow bg-blue-600 hover:bg-blue-700 rounded-lg text-white px-3 transition-all'
-        >
-            <i className="ri-send-plane-fill"></i>
-        </button>
-    </div>
-</div>
+                    {/* Message Input Field */}
+                    <div className="inputField w-full flex absolute bottom-0 p-2 box bg-white z-10 border-t border-gray-200">
+                        <input
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            type='text'
+                            placeholder='Enter message'
+                            className='w-80 m-2 px-4 ps-1 border border-gray-300 outline-none bg-white text-gray-900 rounded-lg placeholder-gray-400 focus:ring-2 focus:ring-blue-500 transition-all'
+                        />
+                        <button
+                            onClick={send}
+                            className='flex-grow bg-blue-600 hover:bg-blue-700 rounded-lg text-white px-3 transition-all'
+                        >
+                            <i className="ri-send-plane-fill"></i>
+                        </button>
+                    </div>
+                </div>
 
                 {/* Side Panel - Collaborators */}
                 <div className={`sidePanel w-full h-full flex flex-col gap-2 bg-gray-900 absolute transition-all ${isSidePanelOpen ? 'translate-x-0' : '-translate-x-full'} top-0 shadow-2xl`}>
@@ -576,14 +556,24 @@ const Project = () => {
                                 {!installed ? (
                                     <button
                                         onClick={handleInstall}
-                                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all"
+                                        disabled={isInstalling || !webContainer}
+                                        className={`px-4 py-2 text-white rounded-lg transition-all ${
+                                            isInstalling || !webContainer
+                                                ? 'bg-gray-600 cursor-not-allowed'
+                                                : 'bg-blue-600 hover:bg-blue-700'
+                                        }`}
                                     >
-                                        Install
+                                        {isInstalling ? 'Installing...' : 'Install'}
                                     </button>
                                 ) : (
                                     <button
                                         onClick={handleRun}
-                                        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all"
+                                        disabled={!webContainer}
+                                        className={`px-4 py-2 text-white rounded-lg transition-all ${
+                                            !webContainer
+                                                ? 'bg-gray-600 cursor-not-allowed'
+                                                : 'bg-green-600 hover:bg-green-700'
+                                        }`}
                                     >
                                         Run
                                     </button>
@@ -636,7 +626,7 @@ const Project = () => {
                                 className="w-full p-2 px-4 bg-gray-700 text-white rounded-lg outline-none"
                             />
                         </div>
-                        <iframe src={iframeUrl} className="w-full h-full  bg-slate-300"></iframe>
+                        <iframe src={iframeUrl} className="w-full h-full bg-slate-300"></iframe>
                     </div>
                 )}
             </section>
